@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: user_service
+
+  redis:
+    image: redis:6
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - '15672:15672'
+
+  user-service:
+    build: ./user-service
+    environment:
+      DATABASE_URL: postgresql://postgres:testpass@localhost:5433/user_service
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  task-service:
+    build: ./task-service
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+      USER_SERVICE_URL: http://user-service:5026
+    depends_on:
+      - rabbitmq
+      - redis
+      - user-service
+
+  task-worker:
+    build: ./task-service
+    command: ['python', 'worker.py']
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
